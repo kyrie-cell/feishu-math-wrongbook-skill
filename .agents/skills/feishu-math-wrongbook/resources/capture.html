@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>📷 二年级数学错题直传（不存相册）</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #16a34a;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+    }
+    .container {
+      width: 100%;
+      max-width: 460px;
+      background: var(--card);
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .header {
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .header p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1e40af;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-top: 6px;
+    }
+    .viewfinder-box {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      background: #0f172a;
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video, #previewImg {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    .placeholder {
+      color: #94a3b8;
+      text-align: center;
+      padding: 24px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .btn {
+      width: 100%;
+      border: none;
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.1s, background 0.2s;
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #1e293b;
+      font-size: 15px;
+      padding: 12px;
+    }
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+    .note-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 12px;
+      font-size: 15px;
+      outline: none;
+    }
+    .note-input:focus {
+      border-color: var(--primary);
+    }
+    .status-box {
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+      display: none;
+    }
+    .status-box.ok {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+    }
+    .status-box.err {
+      display: block;
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .status-box.loading {
+      display: block;
+      background: #eff6ff;
+      color: #1e40af;
+    }
+    #fileInput {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📸 数学错题一键直传</h1>
+      <p>内存流直传飞书当月错题表 · 手机相册零残留</p>
+      <span class="badge" id="monthBadge">自动归档至当月 Sheet</span>
+    </div>
+
+    <div class="viewfinder-box" id="viewfinder">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <img id="previewImg" alt="预览" />
+      <div class="placeholder" id="placeholderText">
+        点击下方按钮直接拍照上传<br/>
+        <small>照片仅在浏览器内存中压缩直传，不会保存到手机相册</small>
+      </div>
+    </div>
+
+    <input type="text" id="noteInput" class="note-input" placeholder="选填备注（如：第4题竖式退位错了）" />
+
+    <!-- 方式1：WebRTC 内存取景直拍（HTTPS 或 localhost 下完全不碰系统相机） -->
+    <button class="btn btn-primary" id="shutterBtn" style="display:none;">
+      ⭕ 拍照并直接上传飞书
+    </button>
+
+    <!-- 方式2：调用相机直接捕获流（兼容局域网 HTTP 手机访问） -->
+    <button class="btn btn-primary" id="cameraFallbackBtn">
+      📷 拍错题直接上传（不存相册）
+    </button>
+    <input type="file" id="fileInput" accept="image/*" capture="environment" />
+
+    <button class="btn btn-secondary" id="toggleLiveBtn">
+      🎥 切换网页内实时取景模式
+    </button>
+
+    <div class="status-box" id="statusBox"></div>
+  </div>
+
+  <!-- 隐藏 Canvas 仅用于内存中压缩图像，用完即清空 -->
+  <canvas id="memCanvas" style="display:none;"></canvas>
+
+  <script>
+    const video = document.getElementById('cameraVideo');
+    const previewImg = document.getElementById('previewImg');
+    const placeholder = document.getElementById('placeholderText');
+    const shutterBtn = document.getElementById('shutterBtn');
+    const cameraFallbackBtn = document.getElementById('cameraFallbackBtn');
+    const toggleLiveBtn = document.getElementById('toggleLiveBtn');
+    const fileInput = document.getElementById('fileInput');
+    const noteInput = document.getElementById('noteInput');
+    const statusBox = document.getElementById('statusBox');
+    const canvas = document.getElementById('memCanvas');
+
+    let stream = null;
+
+    function setStatus(type, html) {
+      statusBox.className = 'status-box ' + type;
+      statusBox.innerHTML = html;
+    }
+
+    async function startLiveCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('err', '当前浏览器通过局域网 HTTP 访问时限制网页内取景，请直接点击上方蓝色【📷 拍错题直接上传】按钮即可！');
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } },
+          audio: false
+        });
+        video.srcObject = stream;
+        video.style.display = 'block';
+        previewImg.style.display = 'none';
+        placeholder.style.display = 'none';
+        shutterBtn.style.display = 'flex';
+        toggleLiveBtn.textContent = '⏹ 关闭实时取景';
+      } catch (e) {
+        setStatus('err', '无法启动网页内取景（' + e.message + '），请直接使用【📷 拍错题直接上传】按钮。');
+      }
+    }
+
+    function stopLiveCamera() {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      video.style.display = 'none';
+      shutterBtn.style.display = 'none';
+      toggleLiveBtn.textContent = '🎥 切换网页内实时取景模式';
+    }
+
+    toggleLiveBtn.addEventListener('click', () => {
+      if (stream) stopLiveCamera();
+      else startLiveCamera();
+    });
+
+    shutterBtn.addEventListener('click', async () => {
+      if (!stream) return;
+      const w = video.videoWidth || 1280;
+      const h = video.videoHeight || 960;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      // 立即清空 canvas 内存
+      ctx.clearRect(0, 0, w, h);
+      canvas.width = 1; canvas.height = 1;
+      await uploadBase64Image(dataUrl);
+    });
+
+    cameraFallbackBtn.addEventListener('click', () => {
+      fileInput.value = '';
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = async () => {
+          const maxSide = 1800;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxSide || h > maxSide) {
+            if (w > h) { h = Math.round(h * maxSide / w); w = maxSide; }
+            else { w = Math.round(w * maxSide / h); h = maxSide; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          // 清理内存
+          ctx.clearRect(0, 0, w, h);
+          canvas.width = 1; canvas.height = 1;
+          fileInput.value = '';
+          await uploadBase64Image(dataUrl);
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    async function uploadBase64Image(dataUrl) {
+      previewImg.src = dataUrl;
+      previewImg.style.display = 'block';
+      placeholder.style.display = 'none';
+      setStatus('loading', '⏳ 正在通过 CLI 写入飞书多维表格并发送 Webhook 提醒...');
+
+      try {
+        const resp = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image_base64: dataUrl,
+            note: noteInput.value.trim()
+          })
+        });
+        const res = await resp.json();
+        // 清理预览图内存引用（3秒后自动释放）
+        setTimeout(() => {
+          previewImg.removeAttribute('src');
+          previewImg.style.display = 'none';
+          if (!stream) placeholder.style.display = 'block';
+        }, 3000);
+
+        if (resp.ok && res.ok) {
+          noteInput.value = '';
+          setStatus(
+            'ok',
+            `✅ <b>上传成功！</b><br/>已写入飞书表：<b>${res.month_sheet}</b><br/>记录编号：<code>${res.note_id}</code><br/>飞书群提醒：${res.webhook_sent ? '已推送 🔔' : '未配置 Webhook'}`
+          );
+        } else {
+          setStatus('err', '❌ 上传失败：' + (res.error || '未知错误'));
+        }
+      } catch (err) {
+        setStatus('err', '❌ 网络错误：' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
